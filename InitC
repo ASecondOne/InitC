@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    echo "Usage: $(basename "$0") <project-path>"
+    exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+project_dir="$1"
+project_name="$(basename "$project_dir")"
+
+if [[ -e "$project_dir" && ! -d "$project_dir" ]]; then
+    echo "Target exists and is not a directory: $project_dir" >&2
+    exit 1
+fi
+
+if [[ -d "$project_dir" ]] && [[ -n "$(ls -A "$project_dir" 2>/dev/null)" ]]; then
+    echo "Directory already exists and is not empty: $project_dir" >&2
+    exit 1
+fi
+
+mkdir -p "$project_dir/src"
+
+cat > "$project_dir/CMakeLists.txt" <<EOF
+cmake_minimum_required(VERSION 3.15)
+
+project(${project_name} VERSION 0.1.0 LANGUAGES C)
+
+add_executable(${project_name} src/main.c)
+target_compile_features(${project_name} PRIVATE c_std_11)
+EOF
+
+cat > "$project_dir/src/main.c" <<'EOF'
+#include <stdio.h>
+
+int main(void) {
+    puts("Hello, world!");
+    return 0;
+}
+EOF
+
+cat > "$project_dir/build.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+build_dir="${1:-build}"
+build_path="${script_dir}/${build_dir}"
+
+cmake -S "$script_dir" -B "$build_path"
+cmake --build "$build_path"
+
+echo
+echo "Build complete. Run: ${build_path}/$(basename "$script_dir")"
+EOF
+
+chmod +x "$project_dir/build.sh"
+
+echo "Initialized C project at: $project_dir"
+echo "To build: cd \"$project_dir\" && ./build.sh"
